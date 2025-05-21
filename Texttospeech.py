@@ -1,45 +1,35 @@
 import streamlit as st
-import whisper
+import speech_recognition as sr
 import tempfile
-import os
 
-# Load Whisper model once
-model = whisper.load_model("small")
+st.title("🎤 Lecture Transcriber (Light Version)")
+st.write("Upload a `.wav` audio file to transcribe it to text.")
 
-# Streamlit app title and instructions
-st.title("🎤 Lecture Transcriber & Highlighter")
-st.write("Upload an audio file (MP3, WAV, M4A) to get transcription with highlights.")
-
-# Upload file
-uploaded_file = st.file_uploader("Upload audio file", type=["mp3", "wav", "m4a"])
+uploaded_file = st.file_uploader("Upload audio file", type=["wav"])
 
 if uploaded_file is not None:
-    # Save uploaded file to a temp file
-    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+    recognizer = sr.Recognizer()
+    
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
         tmp_file.write(uploaded_file.read())
-        temp_audio_path = tmp_file.name
+        tmp_path = tmp_file.name
 
-    # Transcribe using Whisper
-    st.info("⏳ Transcribing... please wait...")
-    result = model.transcribe(temp_audio_path)
-    transcript = result["text"]
+    with sr.AudioFile(tmp_path) as source:
+        audio_data = recognizer.record(source)
+        st.info("⏳ Transcribing...")
+        try:
+            text = recognizer.recognize_google(audio_data)
+            st.subheader("📝 Transcription")
+            st.write(text)
 
-    # Display original transcription
-    st.subheader("📝 Transcription")
-    st.write(transcript)
+            # Highlighting logic
+            keywords = ["important", "definition", "summary", "remember", "exam"]
+            for word in keywords:
+                text = text.replace(word, f"**:orange[{word.upper()}]**")
+            st.subheader("✨ Highlighted")
+            st.markdown(text)
 
-    # Highlight keywords
-    keywords = ["important", "definition", "summary", "key point", "remember", "exam"]
-    highlighted_text = transcript
-
-    for word in keywords:
-        highlighted_text = highlighted_text.replace(
-            word, f"**:orange[{word.upper()}]**"
-        )
-
-    # Display highlighted version
-    st.subheader("✨ Highlighted Text")
-    st.markdown(highlighted_text)
-
-    # Clean up
-    os.remove(temp_audio_path)
+        except sr.UnknownValueError:
+            st.error("❌ Could not understand the audio.")
+        except sr.RequestError:
+            st.error("❌ Speech Recognition service failed.")
